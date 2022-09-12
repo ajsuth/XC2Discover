@@ -1,0 +1,80 @@
+{
+	"info": {
+		"_postman_id": "0f876013-27b1-44bf-94d7-190902076d5b",
+		"name": "Create Discover Feeds",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "3714788"
+	},
+	"item": [
+		{
+			"name": "Create Discover Feeds",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "ShopName",
+						"value": "{{ShopName}}"
+					},
+					{
+						"key": "ShopperId",
+						"value": "{{ShopperId}}"
+					},
+					{
+						"key": "Language",
+						"value": "{{Language}}"
+					},
+					{
+						"key": "Currency",
+						"value": "{{Currency}}"
+					},
+					{
+						"key": "Environment",
+						"value": "{{Environment}}"
+					},
+					{
+						"key": "GeoLocation",
+						"value": "{{GeoLocation}}"
+					},
+					{
+						"key": "CustomerId",
+						"value": "{{CustomerId}}"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{SitecoreIdToken}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"processSettings\": {\n        \"@odata.type\": \"Ajsuth.Sample.Discover.Engine.Models.FeedSettings\",\n        \"ProcessCategories\": true,\n        \"ProcessProducts\": true\n    },\n    \"siteSettings\": [\n        {\n            \"@odata.type\": \"Ajsuth.Sample.Discover.Engine.Policies.SitePolicy\",\n            \"Name\": \"Storefront\",\n            \"Catalog\": \"Habitat_Master\",\n            \"Domain\": \"Storefront\",\n            \"Storefront\": \"Storefront\"\n        }\n    ],\n    \"categorySettings\": {\n        \"@odata.type\": \"Ajsuth.Sample.Discover.Engine.Policies.CategoryFeedPolicy\",\n        \"CategoryFeedFilePath\": \"C:\\\\Feeds\\\\Habitat_category_feed.csv\"\n    },\n    \"productSettings\": {\n        \"@odata.type\": \"Ajsuth.Sample.Discover.Engine.Policies.SellableItemFeedPolicy\",\n        \"ProductFeedFilePath\": \"C:\\\\Feeds\\\\Habitat_product_feed.csv\",\n        \"IncludeStandaloneProducts\": true,\n        \"IncludeProductsWithVariants\": false,\n        \"InventorySetId\": \"Habitat_Inventory\",\n        \"DefaultCurrency\":\"USD\",\n        \"IncludeImages\": true\n    },\n    \"cloudStorageSettings\": {\n        \"@odata.type\": \"Ajsuth.Sample.Discover.Engine.Policies.CloudStoragePolicy\",\n        \"ConnectionString\": \"\",\n        \"BaseUrl\": \"\",\n        \"Container\": \"\"\n    }\n}"
+				},
+				"url": {
+					"raw": "{{ServiceHost}}/{{OpsApi}}/CreateDiscoverFeeds()",
+					"host": [
+						"{{ServiceHost}}"
+					],
+					"path": [
+						"{{OpsApi}}",
+						"CreateDiscoverFeeds()"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

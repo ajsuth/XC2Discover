@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>The Sitecore Commerce Sample Plugin.</Description>
+    <Authors>Andrew Sutherland</Authors>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <PackageTags>$(PackageTags);Commerce;Plugin;</PackageTags>
+    <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Pipelines\Blocks\Catalogs\**" />
+    <EmbeddedResource Remove="Pipelines\Blocks\Catalogs\**" />
+    <None Remove="Pipelines\Blocks\Catalogs\**" />
+  </ItemGroup>
+   
+  <ItemGroup>
+    <PackageReference Include="CsvHelper" Version="28.0.1" />
+    <PackageReference Include="Sitecore.Commerce.Core" Version="7.0.*" />
+    <PackageReference Include="Sitecore.Commerce.Plugin.Content" Version="7.0.*" />
+    <PackageReference Include="Sitecore.Commerce.Plugin.Inventory" Version="7.0.*" />
+    <PackageReference Include="System.Drawing.Common" Version="4.7.0" />
+    <PackageReference Include="WindowsAzure.Storage" Version="9.3.3" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <NoWarn>NU1603,NU5048</NoWarn>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <NoWarn>NU1603,NU5048</NoWarn>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+</Project>
