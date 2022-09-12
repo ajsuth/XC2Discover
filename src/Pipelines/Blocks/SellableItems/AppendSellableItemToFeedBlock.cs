@@ -1,5 +1,5 @@
 ﻿// --------------------------------------------------------------------------------------------------------------------
-// <copyright file="ExportSellableItemBlock.cs" company="Sitecore Corporation">
+// <copyright file="AppendSellableItemToFeedBlock.cs" company="Sitecore Corporation">
 //   Copyright (c) Sitecore Corporation 1999-2022
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------
@@ -12,21 +12,15 @@ using Ajsuth.Sample.Discover.Engine.Policies;
 using Ajsuth.Sample.Discover.Engine.Service;
 using Microsoft.Extensions.Logging;
 using Sitecore.Commerce.Core;
-using Sitecore.Commerce.Plugin.Carts;
 using Sitecore.Commerce.Plugin.Catalog;
 using Sitecore.Commerce.Plugin.Inventory;
 using Sitecore.Commerce.Plugin.Management;
 using Sitecore.Commerce.Plugin.Pricing;
-using Sitecore.Commerce.Plugin.Shops;
 using Sitecore.Framework.Conditions;
 using Sitecore.Framework.Pipelines;
 using System;
 using System.Collections.Generic;
-using System.Drawing.Imaging;
-using System.Dynamic;
-using System.IO;
 using System.Linq;
-using System.Net;
 using System.Threading.Tasks;
 using System.Web;
 
@@ -40,7 +34,7 @@ namespace Ajsuth.Sample.Discover.Engine.Pipelines.Blocks
         /// <summary>Gets or sets the commerce commander.</summary>
         protected ExtendedCatalogCommander Commander { get; set; }
 
-        /// <summary>The export result model.</summary>
+        /// <summary>The feed result model.</summary>
         protected FeedResult Result { get; set; }
 
         /// <summary>The problem objects model.</summary>
@@ -108,11 +102,7 @@ namespace Ajsuth.Sample.Discover.Engine.Pipelines.Blocks
             else
             {
                 // 2. Create/Update Variants
-                //var variants = await CreateSKURows(context, sellableItem, product);
-                //if (variants == null)
-                //{
-                //    return null;
-                //}
+                await CreateSKURows(context, sellableItem, product);
             }
 
             return sellableItem;
@@ -131,17 +121,19 @@ namespace Ajsuth.Sample.Discover.Engine.Pipelines.Blocks
                     Url = ConstructProductRelativeUrl(productId),
                     ImageUrl = ProductSettings.IncludeImages ? await GetFirstProductImage(context, sellableItem) : "",
                     Description = sellableItem.Description,
-                    SKU = productId,
+                    SKU = productId, // Handles flattenning standalone products, and SKU products will override this value.
                     CcIds = await GetCategoryIds(context, sellableItem),
-                    Price = GetListPrice(sellableItem),
-                    SalePrice = GetSalePrice(sellableItem),
-                    IsActive = 1,
-                    ProductType = sellableItem.TypeOfGood,
+                    Price = GetListPrice(sellableItem) ?? 0,
+                    //SalePrice = GetSalePrice(sellableItem),
+                    IsActive = true,
+                    ProductType = "Product",
                     SearchKeywords = string.Join('|', sellableItem.Tags.Select(t => t.Name)),
                     Brand = sellableItem.Brand,
+                    StockQuantity = await GetInventoryFromDefaultInventorySet(context, sellableItem),
                 };
+                product.SalePrice = product.Price;
 
-                await CreateCustomProductXpMappings(context, sellableItem, product);
+                await CreateCustomProductAttributesMappings(context, sellableItem, product);
 
                 return product;
             }
@@ -172,7 +164,7 @@ namespace Ajsuth.Sample.Discover.Engine.Pipelines.Blocks
         {
             context.Logger.LogInformation($"Appending product; Product ID: {product.Id}");
 
-            FeedService.AppendToFeedFile<Category>(ProductSettings.ProductFeedFilePath, product);
+            FeedService.AppendToFeedFile(ProductSettings.ProductFeedFilePath, product);
 
             Result.Products.ItemsAppended++;
         }
@@ -218,10 +210,10 @@ namespace Ajsuth.Sample.Discover.Engine.Pipelines.Blocks
             return string.Join('|', categoryIds);
         }
 
-        protected virtual float GetListPrice(SellableItem sellableItem)
+        protected virtual float? GetListPrice(SellableItem sellableItem, string variantId = null)
         {
-            var listPricePolicy = sellableItem.GetPolicy<ListPricingPolicy>();
-            var price = listPricePolicy.Prices.FirstOrDefault(p => p.CurrencyCode == ProductSettings.DefaultCurrency);
+            var listPricePolicy = sellableItem.GetPolicy<ListPricingPolicy>(variantId, false);
+            var price = listPricePolicy?.Prices.FirstOrDefault(p => p.CurrencyCode == ProductSettings.DefaultCurrency);
             return (float)price?.Amount;
         }
 
@@ -230,24 +222,23 @@ namespace Ajsuth.Sample.Discover.Engine.Pipelines.Blocks
             return null;
         }
 
-        protected virtual async Task<int?> GetInventoryFromDefaultInventorySet(CommercePipelineExecutionContext context, SellableItem sellableItem)
+        protected virtual async Task<int?> GetInventoryFromDefaultInventorySet(CommercePipelineExecutionContext context, SellableItem sellableItem, string variantId = null)
         {
-            var inventory = await GetInventoryInformation(context, sellableItem, sellableItem.ItemVariations, ProductSettings.InventorySetId);
+            var inventory = await GetInventoryInformation(context, sellableItem, variantId, ProductSettings.InventorySetId);
 
             return inventory?.Quantity;
         }
 
         /// <summary>
-        /// Gets or creates the product.
+        /// Gets the first image associated to the sellable item.
         /// </summary>
         /// <param name="context">The context.</param>
         /// <param name="sellableItem">The XC sellable item.</param>
         /// <returns>The OC <see cref="Product"/>.</returns>
-        protected async Task<string> GetFirstProductImage(CommercePipelineExecutionContext context, SellableItem sellableItem)
+        protected async Task<string> GetFirstProductImage(CommercePipelineExecutionContext context, SellableItem sellableItem, string variantId = null)
         {
             var imageUrl = string.Empty;
-            var imagesComponent = sellableItem.GetComponent<ImagesComponent>();
-            var sitecoreConnectionPolicy = context.GetPolicy<SitecoreConnectionPolicy>();
+            var imagesComponent = sellableItem.GetComponent<ImagesComponent>(variantId);
             var storageService = context.CommerceContext.GetObject<CloudStorageService>();
 
             foreach (var imageId in imagesComponent.Images)
@@ -259,15 +250,6 @@ namespace Ajsuth.Sample.Discover.Engine.Pipelines.Blocks
                     context.Logger.LogError($"{Name}: Processing image '{imageId}' for sellable item '{sellableItem.Id}' failed.");
                 }
 
-                //var url = $"{sitecoreConnectionPolicy.MediaLibraryUrl}/{itemModel[ItemModel.MedialUrl].ToString()}";
-                //var startIndex = url.IndexOf("habitat");
-                //var endIndex = url.IndexOf("?");
-                //url = endIndex == -1 ? url : url.Substring(0, endIndex);
-                //var path = url.Substring(startIndex);
-                //string fullPath = $"C:\\Projects\\Images\\{path}";
-
-                //var fileName = Path.GetFileNameWithoutExtension(fullPath);
-
                 imageUrl = $"{storageService.GetBaseUrl()}{storageService.Container.Name}/{sellableItem.FriendlyId}/{itemModel[ItemModel.ItemName]}";
                 break;
             }
@@ -275,279 +257,74 @@ namespace Ajsuth.Sample.Discover.Engine.Pipelines.Blocks
             return imageUrl;
         }
 
-        protected async Task CreateCustomProductXpMappings(CommercePipelineExecutionContext context, SellableItem sellableItem, DiscoverProduct product)
+        protected async Task CreateCustomProductAttributesMappings(CommercePipelineExecutionContext context, SellableItem sellableItem, DiscoverProduct product)
         {
             product.Manufacturer = sellableItem.Manufacturer;
-            product.Inventory = await GetInventoryFromDefaultInventorySet(context, sellableItem);
 
             await Task.FromResult(product);
         }
 
-        ///// <summary>
-        ///// Creates variants for a product.
-        ///// </summary>
-        ///// <param name="context">The context.</param>
-        ///// <param name="sellableItem">The XC sellable item used to enrich OC variant data and disable invalid variants.</param>
-        ///// <param name="product">The OC product the variants will be created for.</param>
-        ///// <returns>The list of OC <see cref="Variant"/>s created/</returns>
-        //protected async Task<List<Variant>> GetOrCreateVariants(CommercePipelineExecutionContext context, SellableItem sellableItem, Product product)
-        //{
-        //    try
-        //    {
-        //        var variationsSummary = sellableItem.GetVariationsSummary();
+        protected async Task CreateSKURows(CommercePipelineExecutionContext context, SellableItem sellableItem, DiscoverProduct product)
+        {
+            try
+            {
+                var variationsComponent = sellableItem.GetComponent<ItemVariationsComponent>();
+                var variations = variationsComponent.GetChildComponents<ItemVariationComponent>();
+                foreach (var variation in variations)
+                {
+                    var skuId = variation.Id.ToValidDiscoverId();
+                    var displayProperties = variation.GetChildComponent<DisplayPropertiesComponent>();
 
-        //        // 1. Create unique specs for product
-        //        var specs = await ConstructAndSaveSpecs(context, product, variationsSummary);
+                    var skuProduct = new DiscoverProduct(product)
+                    {
+                        SkuName = variation.DisplayName.ToUTF8(),
+                        //SkuUrl = ConstructProductRelativeUrl(skuId),
+                        SkuImageUrl = ProductSettings.IncludeImages ? await GetFirstProductImage(context, sellableItem, variation.Id) : "",
+                        SkuDescription = variation.Description,
+                        SKU = skuId,
+                        ProductType = "SKU",
+                        OverridePrice = GetListPrice(sellableItem, variation.Id),
+                        //OverrideSalePrice = GetSalePrice(sellableItem),
+                        OverrideStockQuantity = await GetInventoryFromDefaultInventorySet(context, sellableItem, variation.Id),
+                        Color = displayProperties?.Color,
+                        Size = displayProperties?.Size,
+                    };
+                    skuProduct.OverrideSalePrice = skuProduct.OverridePrice;
 
-        //        // 2. Create spec options
-        //        await ConstructAndSaveSpecOptions(context, specs, variationsSummary);
+                    await CreateCustomSkuAttributesMappings(context, sellableItem, skuProduct);
 
-        //        // 3. Create spec product assignments
-        //        await ConstructAndSaveSpecProductAssignments(context, product, specs);
+                    context.Logger.LogInformation($"Appending product sku; Product ID: {product.Id}, SKU: {variation.Id}");
 
-        //        // 4. Generate variants
-        //        context.Logger.LogInformation($"Generating variants; Product ID: {product.ID}");
-        //        await Client.Products.GenerateVariantsAsync(product.ID, true);
+                    FeedService.AppendToFeedFile(ProductSettings.ProductFeedFilePath, skuProduct);
 
-        //        // 5. Update generated variants
-        //        var variantList = await UpdateVariants(context, sellableItem, product, variationsSummary);
-                
-        //        return variantList;
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        Result.Variants.ItemsErrored++;
+                    Result.SKUs.ItemsAppended++;
+                }
+            }
+            catch (Exception ex)
+            {
+                Result.SKUs.ItemsErrored++;
 
-        //        context.Abort(
-        //            await context.CommerceContext.AddMessage(
-        //                context.GetPolicy<KnownResultCodes>().Error,
-        //                DiscoverConstants.Errors.CreateVariantsFailed,
-        //                new object[]
-        //                {
-        //                    Name,
-        //                    product.ID,
-        //                    ex.Message,
-        //                    ex
-        //                },
-        //                $"{Name}: Ok| Creating variants '{product.ID}' failed.\n{ex.Message}\n{ex}").ConfigureAwait(false),
-        //            context);
+                context.Abort(
+                    await context.CommerceContext.AddMessage(
+                        context.GetPolicy<KnownResultCodes>().Error,
+                        DiscoverConstants.Errors.CreateVariantsFailed,
+                        new object[]
+                        {
+                                Name,
+                                product.Id,
+                                ex.Message,
+                                ex
+                        },
+                        $"{Name}: Ok| Creating variants '{product.Id}' failed.\n{ex.Message}\n{ex}").ConfigureAwait(false),
+                    context);
+            }
+        }
 
-        //        return null;
-        //    }
-        //}
+        protected async Task CreateCustomSkuAttributesMappings(CommercePipelineExecutionContext context, SellableItem sellableItem, DiscoverProduct skuProduct)
+        {
 
-        ///// <summary>
-        ///// Creates or updates product specs.
-        ///// </summary>
-        ///// <param name="context">The context.</param>
-        ///// <param name="product">The product that will be used for the Spec ID prefix.</param>
-        ///// <param name="variationsSummary">The XC variations summary that will be converted to specs.</param>
-        ///// <returns>The list of <see cref="Spec"/>s.</returns>
-        //protected async Task<List<Spec>> ConstructAndSaveSpecs(CommercePipelineExecutionContext context, Product product, VariationsSummary variationsSummary)
-        //{
-        //    var specs = new List<Spec>();
-        //    var distinctVariationProperties = variationsSummary.UniqueProperties.Distinct();
-
-        //    foreach (var variationProperty in distinctVariationProperties)
-        //    {
-        //        var spec = new Spec
-        //        {
-        //            ID = $"{product.ID}_{variationProperty}",
-        //            Name = variationProperty,
-        //            Required = true,
-        //            DefinesVariant = true
-        //        };
-
-        //        Result.Specs.ItemsProcessed++;
-
-        //        context.Logger.LogInformation($"Saving spec; Spec ID: {spec.ID}");
-        //        spec = await Client.Specs.SaveAsync(spec.ID, spec);
-        //        Result.Specs.ItemsUpdated++;
-
-        //        specs.Add(spec);
-        //    }
-
-        //    // await Throttler.RunAsync(specs, 100, 20, spec => client.Specs.SaveAsync(spec.ID, spec));
-
-        //    return specs;
-        //}
-
-        ///// <summary>
-        ///// Creates or updates product spec options.
-        ///// </summary>
-        ///// <param name="context">The context.</param>
-        ///// <param name="specs">The list of specs that will have options created.</param>
-        ///// <param name="variationsSummary">The XC variations summary that will be converted to specs.</param>
-        ///// <returns></returns>
-        //protected async Task ConstructAndSaveSpecOptions(CommercePipelineExecutionContext context, List<Spec> specs, VariationsSummary variationsSummary)
-        //{
-        //    foreach (var spec in specs)
-        //    {
-        //        var specVariationProperties = variationsSummary.GetDistinctValues(spec.Name);
-
-        //        foreach (var propertyValue in specVariationProperties)
-        //        {
-        //            var option = new SpecOption
-        //            {
-        //                ID = propertyValue.ToValidOrderCloudId(),
-        //                Value = propertyValue
-        //            };
-
-        //            Result.SpecOptions.ItemsProcessed++;
-
-        //            context.Logger.LogInformation($"Saving spec option; Spec ID: {spec.ID}, Option ID: {option.ID}");
-        //            await Client.Specs.SaveOptionAsync(spec.ID, option.ID, option);
-        //            Result.SpecOptions.ItemsUpdated++;
-        //        }
-
-        //        // await Throttler.RunAsync(specOptions, 100, 20, spec => client.Specs.SaveOptionAsync(spec.ID, specOption.ID, specOption));
-        //    }
-        //}
-
-        ///// <summary>
-        ///// Creates or updates product spec options.
-        ///// </summary>
-        ///// <param name="context">The context.</param>
-        ///// <param name="product">The product to be associated to the specs.</param>
-        ///// <param name="specs">The list of specs that will have options created.</param>
-        ///// <returns></returns>
-        //protected async Task ConstructAndSaveSpecProductAssignments(CommercePipelineExecutionContext context, Product product, List<Spec> specs)
-        //{
-        //    foreach (var spec in specs)
-        //    {
-        //        var specProductAssignment = new SpecProductAssignment
-        //        {
-        //            SpecID = spec.ID,
-        //            ProductID = product.ID
-        //        };
-
-        //        Result.SpecProductAssignments.ItemsProcessed++;
-
-        //        context.Logger.LogInformation($"Saving spec product assignment; Spec ID: {specProductAssignment.SpecID}, Product ID: {specProductAssignment.ProductID}");
-        //        await Client.Specs.SaveProductAssignmentAsync(specProductAssignment);
-        //        Result.SpecProductAssignments.ItemsUpdated++;
-        //    }
-
-        //    // await Throttler.RunAsync(specOptions, 100, 20, specProductAssignments => client.Specs.SaveProductAssignmentAsync(specProductAssignment));
-        //}
-
-        ///// <summary>
-        ///// Updates variants with inventory, pricing, etc.
-        ///// </summary>
-        ///// <param name="context">The context.</param>
-        ///// <param name="client">The <see cref="OrderCloudClient"/>.</param>
-        ///// <param name="sellableItem"></param>
-        ///// <param name="product">The product to be associated to the specs.</param>
-        ///// <param name="variationsSummary"></param>
-        ///// <param name="productSettings"></param>
-        ///// <param name="exportResult"></param>
-        ///// <returns></returns>
-        //protected async Task<List<Variant>> UpdateVariants(CommercePipelineExecutionContext context, SellableItem sellableItem, Product product, VariationsSummary variationsSummary)
-        //{
-        //    var variantList = new List<Variant>();
-        //    var page = 1;
-        //    ListPage<Variant> pagedVariants;
-
-        //    do
-        //    {
-        //        pagedVariants = await Client.Products.ListVariantsAsync(product.ID, page: page++);
-
-        //        foreach (var variant in pagedVariants.Items)
-        //        {
-        //            Result.Variants.ItemsProcessed++;
-
-        //            var matchingVariant = GetVariationSummary(variationsSummary, variant);
-        //            if (matchingVariant != null)
-        //            {
-        //                variantList.Add(variant);
-
-        //                var xcVariant = sellableItem.GetVariation(matchingVariant.Id);
-        //                var displayProperties = xcVariant.GetChildComponent<DisplayPropertiesComponent>();
-
-        //                var updatedVariant = new PartialVariant
-        //                {
-        //                    ID = matchingVariant.Id,
-        //                    Active = !xcVariant.Disabled,
-        //                    Description = displayProperties.DisambiguatingDescription
-        //                };
-
-        //                updatedVariant.xp = new ExpandoObject();
-        //                updatedVariant.xp.Tags = xcVariant.Tags.Select(t => t.Name);
-
-        //                if (xcVariant.HasChildComponent<ItemSpecificationsComponent>())
-        //                {
-        //                    var specifications = xcVariant.GetChildComponent<ItemSpecificationsComponent>();
-
-        //                    updatedVariant.ShipWeight = Convert.ToDecimal(specifications.Weight);
-        //                    updatedVariant.ShipHeight = Convert.ToDecimal(specifications.Height);
-        //                    updatedVariant.ShipWidth = Convert.ToDecimal(specifications.Width);
-        //                    updatedVariant.ShipLength = Convert.ToDecimal(specifications.Length);
-        //                }
-
-        //                // 5a. Update variant inventory
-        //                if (!ProductSettings.MultiInventory)
-        //                {
-        //                    var inventory = await GetInventoryInformation(context, sellableItem, matchingVariant.Id, ProductSettings.InventorySetId);
-        //                    if (inventory != null)
-        //                    {
-        //                        updatedVariant.Inventory = new VariantInventory
-        //                        {
-        //                            QuantityAvailable = inventory.Quantity
-        //                        };
-        //                    }
-        //                }
-
-        //                // 5b. Update variant pricing
-        //                updatedVariant.xp.PriceSchedules = null;
-        //                if (xcVariant.HasPolicy<ListPricingPolicy>())
-        //                {
-        //                    // TODO: create price markups
-
-        //                    // How would we apply variant specific pricing for multi-currency?
-        //                    // It appears price markups can only support single currency as different currencies may require different results.
-        //                    // Use xp to track the priceschedules?
-
-        //                    // This is a sample workaround solution and probably not the best solution.
-        //                    var priceSchedules = await CreateOrUpdatePriceSchedules(context, matchingVariant.Id, xcVariant.GetPolicy<ListPricingPolicy>());
-        //                    updatedVariant.xp.PriceSchedules = priceSchedules.Select(p => p.ID).ToList();
-        //                }
-
-        //                await CreateCustomVariantXpMappings(sellableItem, updatedVariant);
-
-        //                context.Logger.LogInformation($"Patching variant; Updating inventory and pricing; Product ID: {product.ID}, Variant ID: {variant.ID}");
-        //                await Client.Products.PatchVariantAsync(product.ID, variant.ID, updatedVariant);
-        //                Result.Variants.ItemsPatched++;
-        //            }
-        //            else
-        //            {
-        //                // 5c. Disable invalid variants
-        //                var updatedVariant = new PartialVariant
-        //                {
-        //                    ID = variant.ID,
-        //                    Active = false
-        //                };
-        //                updatedVariant.xp = new ExpandoObject();
-        //                updatedVariant.xp.Tags = null;
-        //                updatedVariant.xp.PriceSchedules = null;
-
-        //                context.Logger.LogInformation($"Patching variant; Disabling invalid variants; Product ID: {product.ID}, Variant ID: {variant.ID}");
-        //                await Client.Products.PatchVariantAsync(product.ID, variant.ID, updatedVariant);
-        //                Result.Variants.ItemsPatched++;
-        //            }
-
-        //            // await Throttler.RunAsync(updatedVariants, 100, 20, updatedVariant => client.Products.PatchVariantAsync(product.ID, updatedVariant.ID, updatedVariant));
-        //        }
-        //    } while (pagedVariants != null && pagedVariants.Meta.Page < pagedVariants.Meta.TotalPages);
-
-        //    return variantList;
-        //}
-
-        //protected async Task CreateCustomVariantXpMappings(SellableItem sellableItem, PartialVariant variant)
-        //{
-        //    var xp = variant.xp;
-
-        //    await Task.FromResult(variant);
-        //}
+            await Task.FromResult(skuProduct);
+        }
 
         /// <summary>
         /// Gets the Inventory Information for the sellable item or variant, if variationId is provided.
@@ -583,36 +360,5 @@ namespace Ajsuth.Sample.Discover.Engine.Pipelines.Blocks
 
             return inventoryInformation;
         }
-
-        ///// <summary>
-        ///// Get the variation summary for a the variant.
-        ///// </summary>
-        ///// <param name="variationsSummary"></param>
-        ///// <param name="variant"></param>
-        ///// <returns></returns>
-        //protected VariationSummary GetVariationSummary(VariationsSummary variationsSummary, Variant variant)
-        //{
-        //    var found = true;
-        //    foreach (var variation in variationsSummary.Variations)
-        //    {
-        //        found = true;
-        //        foreach (var property in variation.VariationProperties)
-        //        {
-        //            if (variant.Specs.FirstOrDefault(s => s.Name == property.Name && s.Value == property.Value) == null)
-        //            {
-        //                found = false;
-        //                break;
-        //            }
-        //        }
-
-        //        if (found)
-        //        {
-        //            return variation;
-        //        }
-        //    }
-
-        //    return null;
-        //}
-
     }
 }

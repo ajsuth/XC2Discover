@@ -11,6 +11,9 @@
     <EmbeddedResource Remove="Pipelines\Blocks\Catalogs\**" />
     <None Remove="Pipelines\Blocks\Catalogs\**" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="Models\DiscoverSKU.cs" />
+  </ItemGroup>
    
   <ItemGroup>
     <PackageReference Include="CsvHelper" Version="28.0.1" />

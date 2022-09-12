@@ -1,4 +1,10 @@
-﻿using CsvHelper.Configuration.Attributes;
+﻿// --------------------------------------------------------------------------------------------------------------------
+// <copyright file="DiscoverCategory.cs" company="Sitecore Corporation">
+//   Copyright (c) Sitecore Corporation 1999-2022
+// </copyright>
+// --------------------------------------------------------------------------------------------------------------------
+
+using CsvHelper.Configuration.Attributes;
 
 namespace Ajsuth.Sample.Discover.Engine.Models
 {

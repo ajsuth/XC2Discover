@@ -35,17 +35,6 @@ namespace Ajsuth.Sample.Discover.Engine
                     .Add<Pipelines.Blocks.ConfigureOpsServiceApiBlock>()
                 )
 
-                //.AddPipeline<IExportCatalogsPipeline, ExportCatalogsPipeline>(pipeline => pipeline
-                //    .Add<ValidateCatalogBlock>()
-                //    //.Add<ExportCatalogBlock>()
-                //)
-
-                //.AddPipeline<IExportCatalogAssignmentsPipeline, ExportCatalogAssignmentsPipeline>(pipeline => pipeline
-                //    .Add<ValidateCatalogBlock>()
-                //    //.Add<ExportCatalogAssignmentsBlock>()
-                //    .Add<ExportCatalogAssignmentsForHeadstartBlock>()
-                //)
-
                 .AddPipeline<IAppendCategoryToFeedPipeline, AppendCategoryToFeedPipeline>(pipeline => pipeline
                     .Add<ValidateCategoryBlock>()
                     .Add<AppendCategoryToFeedBlock>()
@@ -59,10 +48,8 @@ namespace Ajsuth.Sample.Discover.Engine
                 .AddPipeline<ICreateDiscoverFeedsPipeline, CreateDiscoverFeedsPipeline>(pipeline => pipeline
                     .Add<PrepareExportBlock>()
                     .Add<PrepareAzureStorageBlock>()
-                    //.Add<ExportCatalogsBlock>()
                     .Add<CreateCategoryFeedBlock>()
                     .Add<CreateProductFeedBlock>()
-                    //.Add<ExportAllCatalogAssignmentsBlock>()
                 )
 
             );

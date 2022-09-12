@@ -6,12 +6,15 @@ This is sample plugin to convert Sitecore Commerce data into Sitecore Discover c
 
 ## Features
 
-* Customer (Buyer) Migration
-* Catalog Migration
 * Category Migration
 * Sellable Item (Product) Migration
-* List Price Migration (Sellable Items only)
-* Inventory Migration
+
+## Unsupported Features / Potential Future Support
+
+* Locales
+* Pricing via price cards
+* Sale Pricing (currently a copy of the List Price)
+* Store pricing and inventory
 
 ## Preparing a Sitecore Discover Domain
 

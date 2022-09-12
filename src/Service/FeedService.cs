@@ -21,7 +21,7 @@ namespace Ajsuth.Sample.Discover.Engine.Service
             }
         }
 
-        public static void AppendToFeedFile<T>(string filePath, object entry)
+        public static void AppendToFeedFile(string filePath, object entry)
         {
             using (var writer = new StreamWriter(@filePath, true, Encoding.UTF8))
             {

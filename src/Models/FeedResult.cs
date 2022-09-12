@@ -16,6 +16,6 @@ namespace Ajsuth.Sample.Discover.Engine.Models
         public FeedObject Categories { get; set; } = new FeedObject();
         public FeedObject ProductImages { get; set; } = new FeedObject();
         public FeedObject Products { get; set; } = new FeedObject();
-        public FeedObject Variants { get; set; } = new FeedObject();
+        public FeedObject SKUs { get; set; } = new FeedObject();
     }
 }

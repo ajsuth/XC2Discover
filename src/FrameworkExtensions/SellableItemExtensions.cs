@@ -33,7 +33,7 @@ namespace Ajsuth.Sample.Discover.Engine.FrameworkExtensions
 
             var variationsComponent = sellableItem.GetComponent<ItemVariationsComponent>();
             var variations = variationsComponent.GetChildComponents<ItemVariationComponent>();
-            if (variations.Count > 1)
+            if (variations.Count > 0)
             {
                 return true;
             }

@@ -1,5 +1,5 @@
 ﻿// --------------------------------------------------------------------------------------------------------------------
-// <copyright file="PrepareExportBlock.cs" company="Sitecore Corporation">
+// <copyright file="PrepareAzureStorageBlock.cs" company="Sitecore Corporation">
 //   Copyright (c) Sitecore Corporation 1999-2022
 // </copyright>
 // --------------------------------------------------------------------------------------------------------------------

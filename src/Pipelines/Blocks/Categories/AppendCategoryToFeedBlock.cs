@@ -29,7 +29,7 @@ namespace Ajsuth.Sample.Discover.Engine.Pipelines.Blocks
         /// <summary>Gets or sets the commerce commander.</summary>
         protected ExtendedCatalogCommander Commander { get; set; }
 
-        /// <summary>The export result model.</summary>
+        /// <summary>The feed result model.</summary>
         protected FeedResult Result { get; set; }
 
         /// <summary>The problem objects model.</summary>
@@ -112,7 +112,7 @@ namespace Ajsuth.Sample.Discover.Engine.Pipelines.Blocks
 
                 context.Logger.LogInformation($"Appending category; Catalog ID: {catalogId}, Category ID: {categoryId}");
 
-                FeedService.AppendToFeedFile<Category>(CategorySettings.CategoryFeedFilePath, dCategory);
+                FeedService.AppendToFeedFile(CategorySettings.CategoryFeedFilePath, dCategory);
 
                 Result.Categories.ItemsAppended++;
 
@@ -145,7 +145,7 @@ namespace Ajsuth.Sample.Discover.Engine.Pipelines.Blocks
         {
             var encodedCategoryId = HttpUtility.UrlEncode(categoryId);
 
-            return $"products/{encodedCategoryId}";
+            return $"products?categoryID={encodedCategoryId}";
         }
     }
 }
